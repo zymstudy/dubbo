@@ -84,6 +84,7 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
     
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        // key = 全限定类名 + "." + 方法名，比如 com.xxx.DemoService.sayHello
         String key = invokers.get(0).getUrl().getServiceKey() + "." + invocation.getMethodName();
         ConcurrentMap<String, WeightedRoundRobin> map = methodWeightMap.get(key);
         if (map == null) {
@@ -96,28 +97,41 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
         Invoker<T> selectedInvoker = null;
         WeightedRoundRobin selectedWRR = null;
         for (Invoker<T> invoker : invokers) {
+            // 获取url的标示性字符串
             String identifyString = invoker.getUrl().toIdentityString();
             WeightedRoundRobin weightedRoundRobin = map.get(identifyString);
+            // 计算权重
             int weight = getWeight(invoker, invocation);
 
             if (weightedRoundRobin == null) {
                 weightedRoundRobin = new WeightedRoundRobin();
+                // 设置 Invoker 权重
                 weightedRoundRobin.setWeight(weight);
+                // 存储 url 唯一标识 identifyString 到 weightedRoundRobin 的映射关系
                 map.putIfAbsent(identifyString, weightedRoundRobin);
             }
+            // Invoker 权重不等于 WeightedRoundRobin 中保存的权重，说明权重变化了，此时进行更新
             if (weight != weightedRoundRobin.getWeight()) {
                 //weight changed
                 weightedRoundRobin.setWeight(weight);
             }
+            // current + weight
             long cur = weightedRoundRobin.increaseCurrent();
+            // 设置 lastUpdate，表示近期更新过
             weightedRoundRobin.setLastUpdate(now);
+            // 找出最大的 current
             if (cur > maxCurrent) {
                 maxCurrent = cur;
+                // 将具有最大 current 权重的 Invoker 赋值给 selectedInvoker
                 selectedInvoker = invoker;
+                // 将 Invoker 对应的 weightedRoundRobin 赋值给 selectedWRR，留作后用
                 selectedWRR = weightedRoundRobin;
             }
             totalWeight += weight;
         }
+        // 对 <identifyString, WeightedRoundRobin> 进行检查，过滤掉长时间未被更新的节点。
+        // 该节点可能挂了，invokers 中不包含该节点，所以该节点的 lastUpdate 长时间无法被更新。
+        // 若未更新时长超过阈值后，就会被移除掉，默认阈值为60秒。
         if (!updateLock.get() && invokers.size() != map.size()) {
             if (updateLock.compareAndSet(false, true)) {
                 try {
@@ -131,7 +145,9 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
             }
         }
         if (selectedInvoker != null) {
+            // 让 current 减去权重总和，等价于 current -= totalWeight
             selectedWRR.sel(totalWeight);
+            // 返回具有最大 current 的 Invoker
             return selectedInvoker;
         }
         // should not happen here

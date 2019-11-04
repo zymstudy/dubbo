@@ -86,6 +86,9 @@ public class ReferenceBean<T> extends ReferenceConfig<T> implements FactoryBean,
 
     @Override
     @SuppressWarnings({"unchecked"})
+    /**
+     * 在初始化bean的时候都会执行该方法
+     */
     public void afterPropertiesSet() throws Exception {
         if (applicationContext != null) {
             BeanFactoryUtils.beansOfTypeIncludingAncestors(applicationContext, ConfigCenterBean.class, false, false);

@@ -95,6 +95,7 @@ public class StaticDirectory<T> extends AbstractDirectory<T> {
     @Override
     protected List<Invoker<T>> doList(Invocation invocation) throws RpcException {
         List<Invoker<T>> finalInvokers = invokers;
+        // 进行服务路由
         if (routerChain != null) {
             try {
                 finalInvokers = routerChain.route(getConsumerUrl(), invocation);

@@ -47,13 +47,16 @@ public class RouterChain<T> {
     }
 
     private RouterChain(URL url) {
+        // SPI机制获取 RouterFactory
         List<RouterFactory> extensionFactories = ExtensionLoader.getExtensionLoader(RouterFactory.class)
                 .getActivateExtension(url, (String[]) null);
 
+        // RouterFactory生成router
         List<Router> routers = extensionFactories.stream()
                 .map(factory -> factory.getRouter(url))
                 .collect(Collectors.toList());
 
+        // 设置routers到当前类，并且根据优先级排序
         initWithRouters(routers);
     }
 

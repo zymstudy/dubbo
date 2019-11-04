@@ -65,11 +65,16 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
         try {
             checkInvokers(invokers, invocation);
             final List<Invoker<T>> selected;
+            // 获取 forks 配置
             final int forks = getUrl().getParameter(FORKS_KEY, DEFAULT_FORKS);
+            // 获取超时配置
             final int timeout = getUrl().getParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT);
+            // 如果 forks 配置不合理，则直接将 invokers 赋值给 selected
             if (forks <= 0 || forks >= invokers.size()) {
                 selected = invokers;
-            } else {
+            }
+            // 循环选出 forks 个 Invoker，并添加到 selected 中
+            else {
                 selected = new ArrayList<>();
                 for (int i = 0; i < forks; i++) {
                     Invoker<T> invoker = select(loadbalance, invocation, invokers, selected);
@@ -83,11 +88,15 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
             final AtomicInteger count = new AtomicInteger();
             final BlockingQueue<Object> ref = new LinkedBlockingQueue<>();
             for (final Invoker<T> invoker : selected) {
+                // 使用Executors.newCachedThreadPool执行
                 executor.execute(() -> {
                     try {
+                        // 调用服务
                         Result result = invoker.invoke(invocation);
+                        // 将结果加入到ref中
                         ref.offer(result);
                     } catch (Throwable e) {
+                        // 如果全部失败，放入最后一个调用异常到ref中
                         int value = count.incrementAndGet();
                         if (value >= selected.size()) {
                             ref.offer(e);
@@ -96,11 +105,15 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
                 });
             }
             try {
+                // 获取头元素
                 Object ret = ref.poll(timeout, TimeUnit.MILLISECONDS);
+                // 如果全部失败，ref中将只有一个异常对象
+                // 抛出异常
                 if (ret instanceof Throwable) {
                     Throwable e = (Throwable) ret;
                     throw new RpcException(e instanceof RpcException ? ((RpcException) e).getCode() : 0, "Failed to forking invoke provider " + selected + ", but no luck to perform the invocation. Last error is: " + e.getMessage(), e.getCause() != null ? e.getCause() : e);
                 }
+                // 返回拿到的第一个正常返回
                 return (Result) ret;
             } catch (InterruptedException e) {
                 throw new RpcException("Failed to forking invoke provider " + selected + ", but no luck to perform the invocation. Last error is: " + e.getMessage(), e);

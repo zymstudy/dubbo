@@ -56,6 +56,8 @@ public class RandomLoadBalance extends AbstractLoadBalance {
         weights[0] = firstWeight;
         // The sum of weights
         int totalWeight = firstWeight;
+        // 下面这个循环有两个作用，第一是计算总权重 totalWeight，
+        // 第二是检测每个服务提供者的权重是否相同
         for (int i = 1; i < length; i++) {
             int weight = getWeight(invokers.get(i), invocation);
             // save for later use
@@ -68,16 +70,20 @@ public class RandomLoadBalance extends AbstractLoadBalance {
         }
         if (totalWeight > 0 && !sameWeight) {
             // If (not every invoker has the same weight & at least one invoker's weight>0), select randomly based on totalWeight.
+            // 使用ThreadLocalRandom线程安全的获取一个0-totalWeight之间的随机数
             int offset = ThreadLocalRandom.current().nextInt(totalWeight);
             // Return a invoker based on the random value.
+            // 让随机值 offset 减去权重值
             for (int i = 0; i < length; i++) {
                 offset -= weights[i];
+                // 返回相应的 Invoker
                 if (offset < 0) {
                     return invokers.get(i);
                 }
             }
         }
         // If all invokers have the same weight value or totalWeight=0, return evenly.
+        // 如果所有服务提供者权重值相同，此时直接随机返回一个即可
         return invokers.get(ThreadLocalRandom.current().nextInt(length));
     }
 

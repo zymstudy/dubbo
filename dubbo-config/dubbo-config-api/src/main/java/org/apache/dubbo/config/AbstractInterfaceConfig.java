@@ -276,9 +276,12 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
         if (this.configCenter != null) {
             // TODO there may have duplicate refresh
+            // 刷新configCenter的配置
             this.configCenter.refresh();
+            // 动态获取配置中心的实现，然后获取到全局配置内容，获取应用配置内容，然后刷新到本地的环境变量中去
             prepareEnvironment();
         }
+        // 根据配置中心和环境变量的配置刷新配置
         ConfigManager.getInstance().refreshAll();
     }
 
@@ -287,7 +290,9 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
             if (!configCenter.checkOrUpdateInited()) {
                 return;
             }
+            // 获取配置中心实现类
             DynamicConfiguration dynamicConfiguration = getDynamicConfiguration(configCenter.toUrl());
+            // 获取常量
             String configContent = dynamicConfiguration.getProperties(configCenter.getConfigFile(), configCenter.getGroup());
 
             String appGroup = application != null ? application.getName() : null;
@@ -331,24 +336,36 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
             for (RegistryConfig config : registries) {
                 String address = config.getAddress();
                 if (StringUtils.isEmpty(address)) {
+                    // 若 address 为空，则将其设为 0.0.0.0
                     address = ANYHOST_VALUE;
                 }
+                // address不为n/a
                 if (!RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(address)) {
                     Map<String, String> map = new HashMap<String, String>();
+                    // 添加 ApplicationConfig 中的字段信息到 map 中
                     appendParameters(map, application);
+                    // 添加 RegistryConfig 字段信息到 map 中
                     appendParameters(map, config);
+                    // 添加 path、pid，protocol 等信息到 map 中
                     map.put(PATH_KEY, RegistryService.class.getName());
                     appendRuntimeParameters(map);
                     if (!map.containsKey(PROTOCOL_KEY)) {
                         map.put(PROTOCOL_KEY, DUBBO_PROTOCOL);
                     }
+
+                    // 解析得到 URL 列表，address 可能包含多个注册中心 ip，
+                    // 因此解析得到的是一个 URL 列表
                     List<URL> urls = UrlUtils.parseURLs(address, map);
 
                     for (URL url : urls) {
                         url = URLBuilder.from(url)
                                 .addParameter(REGISTRY_KEY, url.getProtocol())
+                                // 将 URL 协议头设置为 registry
                                 .setProtocol(REGISTRY_PROTOCOL)
                                 .build();
+                        // 通过判断条件，决定是否添加 url 到 registryList 中，条件如下：
+                        // (服务提供者 && register = true 或 null)
+                        //    || (非服务提供者 && subscribe = true 或 null)
                         if ((provider && url.getParameter(REGISTER_KEY, true))
                                 || (!provider && url.getParameter(SUBSCRIBE_KEY, true))) {
                             registryList.add(url);

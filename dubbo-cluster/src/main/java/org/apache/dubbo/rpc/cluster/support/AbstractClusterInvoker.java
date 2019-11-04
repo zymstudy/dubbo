@@ -123,24 +123,34 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         if (CollectionUtils.isEmpty(invokers)) {
             return null;
         }
+        // 获取调用的方法名
         String methodName = invocation == null ? StringUtils.EMPTY : invocation.getMethodName();
 
+        // 获取 sticky 配置，sticky 表示粘滞连接。所谓粘滞连接是指让服务消费者尽可能的
+        // 调用同一个服务提供者，除非该提供者挂了再进行切换
         boolean sticky = invokers.get(0).getUrl()
                 .getMethodParameter(methodName, CLUSTER_STICKY_KEY, DEFAULT_CLUSTER_STICKY);
 
         //ignore overloaded method
+        // 如果 invokers 不包含 stickyInvoker，则设置stickyInvoker为空
         if (stickyInvoker != null && !invokers.contains(stickyInvoker)) {
             stickyInvoker = null;
         }
         //ignore concurrency problem
+        // 如果使用粘性策略并且stickyInvoker不为空并且stickyInvoker没有选择过
         if (sticky && stickyInvoker != null && (selected == null || !selected.contains(stickyInvoker))) {
+            // availablecheck 表示是否开启了可用性检查，如果开启了，则调用 stickyInvoker 的
+            // isAvailable 方法进行检查，如果检查通过，则直接返回 stickyInvoker。
             if (availablecheck && stickyInvoker.isAvailable()) {
                 return stickyInvoker;
             }
         }
 
+        // 如果线程走到当前代码处，说明前面的 stickyInvoker 为空，或者不可用。
+        // 此时继续调用 doSelect 选择 Invoker
         Invoker<T> invoker = doSelect(loadbalance, invocation, invokers, selected);
 
+        // 如果 sticky 为 true，则将负载均衡组件选出的 Invoker 赋值给 stickyInvoker
         if (sticky) {
             stickyInvoker = invoker;
         }
@@ -156,9 +166,11 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         if (invokers.size() == 1) {
             return invokers.get(0);
         }
+        // 通过负载均衡组件选择 Invoker
         Invoker<T> invoker = loadbalance.select(invokers, getUrl(), invocation);
 
         //If the `invoker` is in the  `selected` or invoker is unavailable && availablecheck is true, reselect.
+        // 如果 selected 包含负载均衡选择出的 Invoker，或者该 Invoker 无法经过可用性检查，此时进行重选
         if ((selected != null && selected.contains(invoker))
                 || (!invoker.isAvailable() && getUrl() != null && availablecheck)) {
             try {
@@ -202,6 +214,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
                 invokers.size() > 1 ? (invokers.size() - 1) : invokers.size());
 
         // First, try picking a invoker not in `selected`.
+        // 选出可用并且没有选择过的invoker
         for (Invoker<T> invoker : invokers) {
             if (availablecheck && !invoker.isAvailable()) {
                 continue;
@@ -212,11 +225,13 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
             }
         }
 
+        // reselectInvokers 不为空，此时通过负载均衡组件进行选择
         if (!reselectInvokers.isEmpty()) {
             return loadbalance.select(reselectInvokers, getUrl(), invocation);
         }
 
         // Just pick an available invoker using loadbalance policy
+        // 从已选择的invoker中重新通过负载均衡组件进行选择
         if (selected != null) {
             for (Invoker<T> invoker : selected) {
                 if ((invoker.isAvailable()) // available first
@@ -234,17 +249,23 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
 
     @Override
     public Result invoke(final Invocation invocation) throws RpcException {
+        // 校验该invoker是否已经摧毁了
         checkWhetherDestroyed();
 
         // binding attachments into invocation.
+        // 绑定 attachments 到 invocation 中
         Map<String, String> contextAttachments = RpcContext.getContext().getAttachments();
         if (contextAttachments != null && contextAttachments.size() != 0) {
             ((RpcInvocation) invocation).addAttachments(contextAttachments);
         }
 
+        // 通过 directory 列举 Invoker
         List<Invoker<T>> invokers = list(invocation);
+        // 通过 SPI 加载方法设置的LoadBalance，或者invokers为空获取默认的random loadbalance
         LoadBalance loadbalance = initLoadBalance(invokers, invocation);
+        //
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
+        // 调用 doInvoke 进行后续操作，抽象类由子类实现
         return doInvoke(invocation, invokers, loadbalance);
     }
 

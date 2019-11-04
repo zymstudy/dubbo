@@ -106,11 +106,16 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
     }
 
     @Override
+    /**
+     * 监听ContextRefreshedEvent事件，当所有的bean都初始化完成并被成功装载或后会触发该事件
+     */
     public void onApplicationEvent(ContextRefreshedEvent event) {
+        // 是否已导出 && 是不是已被取消导出
         if (!isExported() && !isUnexported()) {
             if (logger.isInfoEnabled()) {
                 logger.info("The service ready on spring started. service: " + getInterface());
             }
+            // 导出服务
             export();
         }
     }

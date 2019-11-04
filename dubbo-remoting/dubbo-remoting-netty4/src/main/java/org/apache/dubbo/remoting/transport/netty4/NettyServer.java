@@ -86,8 +86,10 @@ public class NettyServer extends AbstractServer implements Server {
      */
     @Override
     protected void doOpen() throws Throwable {
+        // 创建 ServerBootstrap
         bootstrap = new ServerBootstrap();
 
+        // 创建 boss 和 worker 线程池
         bossGroup = new NioEventLoopGroup(1, new DefaultThreadFactory("NettyServerBoss", true));
         workerGroup = new NioEventLoopGroup(getUrl().getPositiveParameter(IO_THREADS_KEY, Constants.DEFAULT_IO_THREADS),
                 new DefaultThreadFactory("NettyServerWorker", true));
@@ -95,6 +97,7 @@ public class NettyServer extends AbstractServer implements Server {
         final NettyServerHandler nettyServerHandler = new NettyServerHandler(getUrl(), this);
         channels = nettyServerHandler.getChannels();
 
+        // 设置 PipelineFactory
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
                 .childOption(ChannelOption.TCP_NODELAY, Boolean.TRUE)
@@ -114,6 +117,7 @@ public class NettyServer extends AbstractServer implements Server {
                     }
                 });
         // bind
+        // 绑定到指定的 ip 和端口上
         ChannelFuture channelFuture = bootstrap.bind(getBindAddress());
         channelFuture.syncUninterruptibly();
         channel = channelFuture.channel();

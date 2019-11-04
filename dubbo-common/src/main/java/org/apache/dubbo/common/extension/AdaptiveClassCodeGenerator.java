@@ -86,17 +86,28 @@ public class AdaptiveClassCodeGenerator {
      */
     public String generate() {
         // no need to generate adaptive class since there's no adaptive method found.
+        // 必须至少一个方法有@Adaptive注解
         if (!hasAdaptiveMethod()) {
             throw new IllegalStateException("No adaptive method exist on extension " + type.getName() + ", refuse to create the adaptive class!");
         }
 
         StringBuilder code = new StringBuilder();
+        // 用于拼接一个字符串，格式与java类相同
         code.append(generatePackageInfo());
+        // 包名=type的包名，引用（import） ExtensionLoader类
         code.append(generateImports());
+        // 生成类代码：public class + type简单名称 + $Adaptive + implements + type全限定名 + {
         code.append(generateClassDeclaration());
+        // 例如生成代码：
+        // package com.alibaba.dubbo.rpc;
+        //import com.alibaba.dubbo.common.extension.ExtensionLoader;
+        //public class Protocol$Adaptive implements com.alibaba.dubbo.rpc.Protocol {
+        //    // 省略方法代码
+        //}
 
         Method[] methods = type.getMethods();
         for (Method method : methods) {
+            // 实现type的每个方法
             code.append(generateMethod(method));
         }
         code.append("}");
@@ -154,11 +165,17 @@ public class AdaptiveClassCodeGenerator {
      * generate method declaration
      */
     private String generateMethod(Method method) {
+        // 方法返回类型
         String methodReturnType = method.getReturnType().getCanonicalName();
+        // 方法名
         String methodName = method.getName();
+        // 方法体
         String methodContent = generateMethodContent(method);
+        // 方法参数
         String methodArgs = generateMethodArguments(method);
+        // 方法抛出异常
         String methodThrows = generateMethodThrows(method);
+        // 组成方法字符串
         return String.format(CODE_METHOD_DECLARATION, methodReturnType, methodName, methodArgs, methodThrows, methodContent);
     }
 
@@ -198,24 +215,45 @@ public class AdaptiveClassCodeGenerator {
     private String generateMethodContent(Method method) {
         Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
         StringBuilder code = new StringBuilder(512);
+        // 如果方法没有Adaptive 注解
+        // 生成的方法只会抛出一个异常，如
+        // throw new UnsupportedOperationException(
+        //     "method public abstract void com.alibaba.dubbo.rpc.Protocol.destroy() of interface com.alibaba.dubbo.rpc.Protocol is not adaptive method!");
         if (adaptiveAnnotation == null) {
             return generateUnsupported(method);
         } else {
+            // 获取参数中URL类型参数的index
             int urlTypeIndex = getUrlTypeIndex(method);
 
             // found parameter in URL type
             if (urlTypeIndex != -1) {
                 // Null Point check
+                // url类型参数非空判断
+                // 如：if (arg1 == null)
+                //        throw new IllegalArgumentException("url == null");
+                //    com.alibaba.dubbo.common.URL url = arg1;
                 code.append(generateUrlNullCheck(urlTypeIndex));
             } else {
                 // did not find parameter in URL type
+                // 循环检测方法每个参数是否有一个getUrl的方法
+                // 2.方法中无这样的参数，而是在参数集合的属性中
+                // 如： if (arg0 == null)
+                //          throw new IllegalArgumentException("com.alibaba.dubbo.rpc.Invoker argument == null");
+                //     if (arg0.getUrl() == null)
+                //          throw new IllegalArgumentException("com.alibaba.dubbo.rpc.Invoker argument getUrl() == null");
+                //     com.alibaba.dubbo.common.URL url = arg0.getUrl();
                 code.append(generateUrlAssignmentIndirectly(method));
             }
 
+            // 若 value 为非空数组，直接获取数组内容即可。若 value 为空数组，则需进行额外处理。
+            // 处理过程是将类名转换为字符数组，然后遍历字符数组，并将字符放入 StringBuilder 中。
+            // 若字符为大写字母，则向 StringBuilder 中添加点号，随后将字符变为小写存入 StringBuilder 中
             String[] value = getMethodAdaptiveValue(adaptiveAnnotation);
 
+            // 是否含有Invocation类型的参数
             boolean hasInvocation = hasInvocationArgument(method);
 
+            // 生成Invocation类型参数的判空逻辑
             code.append(generateInvocationArgumentNullCheck(method));
 
             code.append(generateExtNameAssignment(value, hasInvocation));
@@ -244,16 +282,28 @@ public class AdaptiveClassCodeGenerator {
     private String generateExtNameAssignment(String[] value, boolean hasInvocation) {
         // TODO: refactor it
         String getNameCode = null;
+        // 此处循环目的是生成从 URL 中获取拓展名的代码，生成的代码会赋值给 getNameCode 变量。注意这
+        // 个循环的遍历顺序是由后向前遍历的。
         for (int i = value.length - 1; i >= 0; --i) {
+            // 当 i 为最后一个元素的坐标时
             if (i == value.length - 1) {
+                // @SPI value不为空
                 if (null != defaultExtName) {
+                    // protocol 是 url 的一部分，可通过 getProtocol 方法获取，其他的则是从
+                    // URL 参数中获取。因为获取方式不同，所以这里要判断 value[i] 是否为 protocol
                     if (!"protocol".equals(value[i])) {
                         if (hasInvocation) {
+                            // 生成的代码功能等价于下面的代码：
+                            //   url.getMethodParameter(methodName, value[i], defaultExtName)
                             getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);
                         } else {
+                            // 生成的代码功能等价于下面的代码：
+                            //   url.getParameter(value[i], defaultExtName)
                             getNameCode = String.format("url.getParameter(\"%s\", \"%s\")", value[i], defaultExtName);
                         }
                     } else {
+                        // 生成的代码功能等价于下面的代码：
+                        //   ( url.getProtocol() == null ? defaultExtName : url.getProtocol() )
                         getNameCode = String.format("( url.getProtocol() == null ? \"%s\" : url.getProtocol() )", defaultExtName);
                     }
                 } else {
@@ -261,9 +311,12 @@ public class AdaptiveClassCodeGenerator {
                         if (hasInvocation) {
                             getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);
                         } else {
+                            // 生成的代码功能等价于下面的代码：
+                            //   url.getParameter(value[i])
                             getNameCode = String.format("url.getParameter(\"%s\")", value[i]);
                         }
                     } else {
+                        // 生成从 url 中获取协议的代码，比如 "dubbo"
                         getNameCode = "url.getProtocol()";
                     }
                 }
@@ -272,6 +325,8 @@ public class AdaptiveClassCodeGenerator {
                     if (hasInvocation) {
                         getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);
                     } else {
+                        // 生成的代码功能等价于下面的代码：
+                        //   url.getParameter(value[i], getNameCode)
                         getNameCode = String.format("url.getParameter(\"%s\", %s)", value[i], getNameCode);
                     }
                 } else {
@@ -280,6 +335,7 @@ public class AdaptiveClassCodeGenerator {
             }
         }
 
+        // 生成 extName 赋值代码
         return String.format(CODE_EXT_NAME_ASSIGNMENT, getNameCode);
     }
 
