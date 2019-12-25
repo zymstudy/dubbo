@@ -213,7 +213,7 @@ public class RegistryProtocol implements Protocol {
         final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
         // 向注册中心进行订阅 override 数据
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
-        // 创建监听器
+        // 创建监听器，当控制台发出 override 配置覆盖时更新 provider
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
 
         // 根据配置修改providerUrl，
@@ -440,7 +440,7 @@ public class RegistryProtocol implements Protocol {
                 PROVIDERS_CATEGORY + "," + CONFIGURATORS_CATEGORY + "," + ROUTERS_CATEGORY));
 
         // 一个注册中心可能有多个服务提供者，因此这里需要将多个服务提供者合并为一个
-        Invoker invoker = cluster.join(directory);
+            Invoker invoker = cluster.join(directory);
         ProviderConsumerRegTable.registerConsumer(invoker, url, subscribeUrl, directory);
         return invoker;
     }

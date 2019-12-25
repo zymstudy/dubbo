@@ -87,7 +87,9 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
+        // 保存 applicationContext，并且在 jvm 关闭时，删除所有的service和关闭所有的连接
         SpringExtensionFactory.addApplicationContext(applicationContext);
+        // 当上下文状态变化时，添加监听事件
         supportedApplicationListener = addApplicationListener(applicationContext, this);
     }
 
@@ -340,6 +342,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
     public void export() {
         super.export();
         // Publish ServiceBeanExportedEvent
+        // 发布事件，spring拦截事件调用 referenceBean 的 get() 进行服务引入
         publishExportEvent();
     }
 

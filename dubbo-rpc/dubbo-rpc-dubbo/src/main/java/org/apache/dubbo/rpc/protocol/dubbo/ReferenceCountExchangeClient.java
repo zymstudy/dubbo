@@ -40,12 +40,15 @@ import static org.apache.dubbo.rpc.protocol.dubbo.Constants.LAZY_CONNECT_INITIAL
 final class ReferenceCountExchangeClient implements ExchangeClient {
 
     private final URL url;
+    // 引用计数
     private final AtomicInteger referenceCount = new AtomicInteger(0);
 
+    // 装饰对象
     private ExchangeClient client;
 
     public ReferenceCountExchangeClient(ExchangeClient client) {
         this.client = client;
+        // 增加计数
         referenceCount.incrementAndGet();
         this.url = client.getUrl();
     }
@@ -57,6 +60,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     @Override
     public CompletableFuture<Object> request(Object request) throws RemotingException {
+        // 直接调用被装饰对象的同签名方法
         return client.request(request);
     }
 
@@ -145,6 +149,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     @Override
     public void close(int timeout) {
+        // referenceCount 自减
         if (referenceCount.decrementAndGet() <= 0) {
             if (timeout == 0) {
                 client.close();

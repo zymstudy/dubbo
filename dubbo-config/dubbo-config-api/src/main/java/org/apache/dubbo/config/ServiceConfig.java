@@ -500,6 +500,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         // 添加 side、版本、时间戳以及进程号等信息到 map 中
         map.put(SIDE_KEY, PROVIDER_SIDE);
 
+        // 添加时间戳，dubbo 版本，pid等运行时参数
         appendRuntimeParameters(map);
         // 通过反射将对象的字段信息添加到 map 中
         appendParameters(map, metrics);
@@ -527,6 +528,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                     }
                 }
                 // 获取 ArgumentConfig 列表
+                // 设置方法的参数和值到map中
                 List<ArgumentConfig> arguments = method.getArguments();
                 if (CollectionUtils.isNotEmpty(arguments)) {
                     for (ArgumentConfig argument : arguments) {

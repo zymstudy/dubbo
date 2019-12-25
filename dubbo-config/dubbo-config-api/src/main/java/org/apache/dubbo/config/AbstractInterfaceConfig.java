@@ -359,6 +359,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
                     for (URL url : urls) {
                         url = URLBuilder.from(url)
+                                // 设置registry 为 url的协议
                                 .addParameter(REGISTRY_KEY, url.getProtocol())
                                 // 将 URL 协议头设置为 registry
                                 .setProtocol(REGISTRY_PROTOCOL)

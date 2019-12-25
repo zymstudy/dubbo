@@ -47,19 +47,25 @@ public class HeaderExchangeClient implements ExchangeClient {
     private final Client client;
     private final ExchangeChannel channel;
 
+    // 执行器
     private static final HashedWheelTimer IDLE_CHECK_TIMER = new HashedWheelTimer(
             new NamedThreadFactory("dubbo-client-idleCheck", true), 1, TimeUnit.SECONDS, TICKS_PER_WHEEL);
+    // 心跳任务
     private HeartbeatTimerTask heartBeatTimerTask;
+    // 连接任务
     private ReconnectTimerTask reconnectTimerTask;
 
     public HeaderExchangeClient(Client client, boolean startTimer) {
         Assert.notNull(client, "Client can't be null");
         this.client = client;
+        // 创建 HeaderExchangeChannel 对象
         this.channel = new HeaderExchangeChannel(client);
 
         if (startTimer) {
             URL url = client.getUrl();
+            // 开始重新连接任务，当连接不可用或者是还在超时时间内
             startReconnectTask(url);
+            // 开始心跳任务
             startHeartBeatTask(url);
         }
     }
@@ -187,10 +193,16 @@ public class HeaderExchangeClient implements ExchangeClient {
 
     private void startReconnectTask(URL url) {
         if (shouldReconnect(url)) {
+            // 生成一个静态 Collection<Channel>
             AbstractTimerTask.ChannelProvider cp = () -> Collections.singletonList(HeaderExchangeClient.this);
+
+            // 获取心跳超时时间默认为心跳时间的3倍
             int idleTimeout = getIdleTimeout(url);
+            // 获取心跳时间
             long heartbeatTimeoutTick = calculateLeastDuration(idleTimeout);
+            // 创建心跳任务
             this.reconnectTimerTask = new ReconnectTimerTask(cp, heartbeatTimeoutTick, idleTimeout);
+            // 开始心跳任务
             IDLE_CHECK_TIMER.newTimeout(reconnectTimerTask, heartbeatTimeoutTick, TimeUnit.MILLISECONDS);
         }
     }

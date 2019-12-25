@@ -287,7 +287,10 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         }
         // 加载并且初始化本地存根类，检查本地存根类的初始化函数是否符合规范
         checkStubAndLocal(interfaceClass);
-        // 加载dubbo 本地伪装实现，保存在MockInvoker中
+        // 加载dubbo 本地伪装实现，
+        // 如果是直接返回，则检查配置是否合理
+        // 如果是抛出异常则缓存异常和异常信息
+        // 如果是某个具体的 mock 实现类，则加载该类
         checkMock(interfaceClass);
         Map<String, String> map = new HashMap<String, String>();
 
@@ -336,7 +339,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
             }
         }
 
-        // 获取注册地址
+        // 从环境变量获取注册地址
         String hostToRegistry = ConfigUtils.getSystemProperty(DUBBO_IP_TO_REGISTRY);
         if (StringUtils.isEmpty(hostToRegistry)) {
             hostToRegistry = NetUtils.getLocalHost();
@@ -374,7 +377,8 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         if (shouldJvmRefer(map)) {
             // 创建本地调用的url
             URL url = new URL(LOCAL_PROTOCOL, LOCALHOST_VALUE, 0, interfaceClass.getName()).addParameters(map);
-            // 生成injvmprotocol
+            // 生成 AsyncToSyncInvoker 作为 InjvmInvoker 的包装类，
+            // 最终调用 InjvmInvoker 获取服务导出时，设置的excutor
             invoker = REF_PROTOCOL.refer(interfaceClass, url);
             if (logger.isInfoEnabled()) {
                 logger.info("Using injvm service " + interfaceClass.getName());
@@ -442,7 +446,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                 }
                 if (registryURL != null) { // registry url is available
                     // use RegistryAwareCluster only when register's CLUSTER is available
-                    // 如果注册中心链接不为空，则将使用 AvailableCluster
+                    // 如果注册中心链接不为空，则将使用 RegistryAwareCluster 生成 invoker
                     URL u = registryURL.addParameter(CLUSTER_KEY, RegistryAwareCluster.NAME);
                     // The invoker wrap relation would be: RegistryAwareClusterInvoker(StaticDirectory) -> FailoverClusterInvoker(RegistryDirectory, will execute route) -> Invoker
                     // 创建 StaticDirectory 实例，并由 Cluster 对多个 Invoker 进行合并

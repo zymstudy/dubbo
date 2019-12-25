@@ -76,27 +76,38 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
     protected Result doInvoke(final Invocation invocation) throws Throwable {
         RpcInvocation inv = (RpcInvocation) invocation;
         final String methodName = RpcUtils.getMethodName(invocation);
+        // 设置 path 和 version 到 attachment 中
         inv.setAttachment(PATH_KEY, getUrl().getPath());
         inv.setAttachment(VERSION_KEY, version);
 
         ExchangeClient currentClient;
+        // 从 clients 数组中获取 ExchangeClient
         if (clients.length == 1) {
             currentClient = clients[0];
         } else {
+            // 轮询获取链接
             currentClient = clients[index.getAndIncrement() % clients.length];
         }
         try {
+            // 获取 dubbo:method 中return的设置，默认为true
+            // true，则返回future，或回调onreturn等方法，如果设置为false，则请求发送成功后直接返回Null
             boolean isOneway = RpcUtils.isOneway(getUrl(), invocation);
+            // 获取方法超时配置
             int timeout = getUrl().getMethodPositiveParameter(methodName, TIMEOUT_KEY, DEFAULT_TIMEOUT);
             if (isOneway) {
                 boolean isSent = getUrl().getMethodParameter(methodName, Constants.SENT_KEY, false);
+                // 发送请求
                 currentClient.send(inv, isSent);
+                // 直接返回 appResponse 空对象
                 return AsyncRpcResult.newDefaultAsyncResult(invocation);
             } else {
                 AsyncRpcResult asyncRpcResult = new AsyncRpcResult(inv);
                 CompletableFuture<Object> responseFuture = currentClient.request(inv, timeout);
+                // 异步设置结果到 asyncRpcResult 中，
+                // 如果方式为同步，将在后面的 AsyncToSyncInvoker 中调用 get 方法阻塞知道获取结果
                 asyncRpcResult.subscribeTo(responseFuture);
                 // save for 2.6.x compatibility, for example, TraceFilter in Zipkin uses com.alibaba.xxx.FutureAdapter
+                // 兼容dubbo 2.6.x 版本，设置 future 到上下文中
                 FutureContext.getContext().setCompatibleFuture(responseFuture);
                 return asyncRpcResult;
             }

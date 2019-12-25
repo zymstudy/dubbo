@@ -143,9 +143,11 @@ public class DefaultFuture extends CompletableFuture<Object> {
 
     public static void received(Channel channel, Response response, boolean timeout) {
         try {
+            // 在 HeaderExchangeChannel#request，中创建实例时添加到 FUTURES 中
             DefaultFuture future = FUTURES.remove(response.getId());
             if (future != null) {
                 Timeout t = future.timeoutCheckTask;
+                // 没有超时则取消超时任务
                 if (!timeout) {
                     // decrease Time
                     t.cancel();

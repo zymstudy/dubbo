@@ -133,8 +133,10 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
                     + ", dubbo version is " + Version.getVersion() + ", this invoker should not be used any longer");
         }
         RpcInvocation invocation = (RpcInvocation) inv;
+        // 设置 Invoker
         invocation.setInvoker(this);
         if (CollectionUtils.isNotEmptyMap(attachment)) {
+            // 设置 attachment
             invocation.addAttachmentsIfAbsent(attachment);
         }
         Map<String, String> contextAttachments = RpcContext.getContext().getAttachments();
@@ -145,10 +147,13 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
              * by the built-in retry mechanism of the Dubbo. The attachment to update RpcContext will no longer work, which is
              * a mistake in most cases (for example, through Filter to RpcContext output traceId and spanId and other information).
              */
+            // 添加 contextAttachments 到 RpcInvocation#attachment 变量中
             invocation.addAttachments(contextAttachments);
         }
 
+        // 设置异步信息到 RpcInvocation#attachment 中
         invocation.setInvokeMode(RpcUtils.getInvokeMode(url, invocation));
+        // 如果异步就设置invoke_id
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
 
         try {

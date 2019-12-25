@@ -44,11 +44,15 @@ public class SpringExtensionFactory implements ExtensionFactory {
     private static final ApplicationListener SHUTDOWN_HOOK_LISTENER = new ShutdownHookListener();
 
     public static void addApplicationContext(ApplicationContext context) {
+        // 添加spring上下文对象
         CONTEXTS.add(context);
         if (context instanceof ConfigurableApplicationContext) {
+            // 在 jvm 关闭时关闭该上下文对象
             ((ConfigurableApplicationContext) context).registerShutdownHook();
+            // 取消已经注册的 jvm 关闭是的挂钩
             DubboShutdownHook.getDubboShutdownHook().unregister();
         }
+        // 通过反射向 context 中添加监听，如果上下午对象关闭，摧毁所有已注册 url 地址
         BeanFactoryUtils.addApplicationListener(context, SHUTDOWN_HOOK_LISTENER);
     }
 
